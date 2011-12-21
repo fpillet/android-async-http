@@ -19,10 +19,14 @@
 package com.loopj.android.http;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.Header;
 import org.apache.http.StatusLine;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.HttpResponseException;
 import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.util.EntityUtils;
@@ -30,6 +34,7 @@ import org.apache.http.util.EntityUtils;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Looper;
+import android.util.Pair;
 
 /**
  * Used to intercept and handle the responses from requests made using 
@@ -107,25 +112,29 @@ public class AsyncHttpResponseHandler {
      * Fired when a request returns successfully, override to handle in your own code
      * @param content the body of the HTTP response from the server
      */
-    public void onSuccess(String content) {}
+    public void onSuccess(HttpUriRequest request, Header[] headers, String content) {}
 
     /**
      * Fired when a request fails to complete, override to handle in your own code
      * @param error the underlying cause of the failure
      */
-    public void onFailure(Throwable error) {}
+    public void onFailure(HttpUriRequest request, Throwable error) {}
 
 
     //
     // Pre-processing of messages (executes in background threadpool thread)
     //
 
-    protected void sendSuccessMessage(String responseBody) {
-        sendMessage(obtainMessage(SUCCESS_MESSAGE, responseBody));
+    protected void sendSuccessMessage(HttpUriRequest request, Header[] headers, String responseBody) {
+		Map<String,Object> map = new HashMap<String,Object>(3);
+		map.put("request", request);
+		map.put("headers", headers);
+		map.put("body", responseBody);
+        sendMessage(obtainMessage(SUCCESS_MESSAGE, map));
     }
 
-    protected void sendFailureMessage(Throwable e) {
-        sendMessage(obtainMessage(FAILURE_MESSAGE, e));
+    protected void sendFailureMessage(HttpUriRequest request, Throwable e) {
+        sendMessage(obtainMessage(FAILURE_MESSAGE, new Pair<HttpUriRequest, Throwable>(request, e)));
     }
 
     protected void sendStartMessage() {
@@ -141,12 +150,12 @@ public class AsyncHttpResponseHandler {
     // Pre-processing of messages (in original calling thread, typically the UI thread)
     //
 
-    protected void handleSuccessMessage(String responseBody) {
-        onSuccess(responseBody);
+    protected void handleSuccessMessage(HttpUriRequest request, Header[] headers, String responseBody) {
+        onSuccess(request, headers, responseBody);
     }
 
-    protected void handleFailureMessage(Throwable e) {
-        onFailure(e);
+    protected void handleFailureMessage(HttpUriRequest request, Throwable e) {
+        onFailure(request, e);
     }
 
 
@@ -155,10 +164,12 @@ public class AsyncHttpResponseHandler {
     protected void handleMessage(Message msg) {
         switch(msg.what) {
             case SUCCESS_MESSAGE:
-                handleSuccessMessage((String)msg.obj);
+				Map map = (Map)msg.obj;
+                handleSuccessMessage((HttpUriRequest)map.get("request"), (Header[])map.get("headers"), (String)map.get("body"));
                 break;
             case FAILURE_MESSAGE:
-                handleFailureMessage((Throwable)msg.obj);
+				Pair pair = (Pair)msg.obj;
+                handleFailureMessage((HttpUriRequest)pair.first, (Throwable)pair.second);
                 break;
             case START_MESSAGE:
                 onStart();
@@ -191,10 +202,10 @@ public class AsyncHttpResponseHandler {
 
 
     // Interface to AsyncHttpRequest
-    void sendResponseMessage(HttpResponse response) {
+    protected void sendResponseMessage(HttpUriRequest request, HttpResponse response) {
         StatusLine status = response.getStatusLine();
         if(status.getStatusCode() >= 300) {
-            sendFailureMessage(new HttpResponseException(status.getStatusCode(), status.getReasonPhrase()));
+            sendFailureMessage(request, new HttpResponseException(status.getStatusCode(), status.getReasonPhrase()));
         } else {
             try {
                 HttpEntity entity = null;
@@ -203,9 +214,9 @@ public class AsyncHttpResponseHandler {
                     entity = new BufferedHttpEntity(temp);
                 }
 
-                sendSuccessMessage(EntityUtils.toString(entity));
+                sendSuccessMessage(request, response.getAllHeaders(), EntityUtils.toString(entity));
             } catch(IOException e) {
-                sendFailureMessage(e);
+                sendFailureMessage(request, e);
             }
         }
     }

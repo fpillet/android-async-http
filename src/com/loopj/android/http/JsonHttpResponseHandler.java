@@ -23,6 +23,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.Header;
+
 /**
  * Used to intercept and handle the responses from requests made using 
  * {@link AsyncHttpClient}, with automatic parsing into a {@link JSONObject}
@@ -60,8 +63,8 @@ public class JsonHttpResponseHandler extends AsyncHttpResponseHandler {
 
     // Utility methods
     @Override
-    protected void handleSuccessMessage(String responseBody) {
-        super.handleSuccessMessage(responseBody);
+    protected void handleSuccessMessage(HttpUriRequest request, Header[] headers, String responseBody) {
+        super.handleSuccessMessage(request, headers, responseBody);
 
         try {
             Object jsonResponse = parseResponse(responseBody);
@@ -71,7 +74,7 @@ public class JsonHttpResponseHandler extends AsyncHttpResponseHandler {
                 onSuccess((JSONArray)jsonResponse);
             }
         } catch(JSONException e) {
-            onFailure(e);
+            onFailure(request, e);
         }
     }
 

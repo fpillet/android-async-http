@@ -55,7 +55,7 @@ class AsyncHttpRequest implements Runnable {
         } catch (IOException e) {
             if(responseHandler != null) {
                 responseHandler.sendFinishMessage();
-                responseHandler.sendFailureMessage(e);
+                responseHandler.sendFailureMessage(request, e);
             }
         }
     }
@@ -63,7 +63,7 @@ class AsyncHttpRequest implements Runnable {
     private void makeRequest() throws IOException {
         HttpResponse response = client.execute(request, context);
         if(responseHandler != null) {
-            responseHandler.sendResponseMessage(response);
+            responseHandler.sendResponseMessage(request, response);
         }
     }
 

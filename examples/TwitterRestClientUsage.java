@@ -1,5 +1,4 @@
 import org.json.*;
-import com.loopj.android.http.*;
 
 class TwitterRestClientUsage {
     public void getPublicTimeline() {
